@@ -44,3 +44,29 @@ All commands are run from the root of the project, from a terminal:
 ## 👀 Want to learn more?
 
 Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+
+```
+ngg-stock
+├─ README.md
+├─ astro.config.mjs
+├─ package-lock.json
+├─ package.json
+├─ public
+│  ├─ favicon.ico
+│  └─ favicon.svg
+├─ src
+│  ├─ assets
+│  │  ├─ astro.svg
+│  │  └─ background.svg
+│  ├─ components
+│  │  ├─ LoginForm.astro
+│  │  └─ Welcome.astro
+│  ├─ layouts
+│  │  └─ Layout.astro
+│  ├─ pages
+│  │  └─ index.astro
+│  └─ styles
+│     └─ global.css
+└─ tsconfig.json
+
+```

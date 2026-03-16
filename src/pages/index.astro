@@ -1,11 +1,18 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
+import LoginForm from '../components/LoginForm.astro';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// 1. Revisamos si la cookie de sesión de tu app existe y es válida
+const isAuthenticated = Astro.cookies.get('app_session')?.value === 'authenticated';
+
+// 2. Si el usuario ya está autenticado, lo mandamos directo al dashboard
+if (isAuthenticated) {
+  return Astro.redirect('/dashboard');
+}
+
+// 3. Si no, Astro seguirá hacia abajo y mostrará el login normalmente
 ---
 
 <Layout>
-	<Welcome />
+	<LoginForm />
 </Layout>
