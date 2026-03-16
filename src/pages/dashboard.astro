@@ -19,8 +19,9 @@ if (token) {
         const meData = await meRes.json();
         const userId = meData.id;
 
+        // Cambia la línea del searchRes por esta:
         const searchRes = await fetch(
-            `https://api.mercadolibre.com/users/${userId}/items/search`,
+            `https://api.mercadolibre.com/users/${userId}/items/search?status=active,paused,not_yet_active`,
             {
                 headers: { Authorization: `Bearer ${token}` },
             },
