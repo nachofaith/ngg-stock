@@ -8,68 +8,75 @@ const isAuthenticated =
 if (!isAuthenticated) return Astro.redirect("/");
 
 const token = Astro.cookies.get("meli_access_token")?.value;
-let products = []; // Aseguramos que empiece como array vacío
-let error = null;
+let products: any[] = []; // Así TypeScript se queda tranquilo
+let error: string | null = null;
 
 if (token) {
-  try {
-    // 1. Obtenemos tus datos básicos
-    const meRes = await fetch('https://api.mercadolibre.com/users/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const meData = await meRes.json();
-    const userId = meData.id;
-
-    // 2. Intentamos buscar por seller_id en el sitio de Chile (MLC)
-    // Este endpoint es más confiable para cuentas nuevas
-    const searchRes = await fetch(`https://api.mercadolibre.com/sites/MLC/search?seller_id=${userId}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const searchData = await searchRes.json();
-    
-    // MeLi en /sites/search devuelve los datos completos en .results
-    // No necesitamos hacer un segundo fetch por cada ID
-    const rawProducts = searchData.results || [];
-
-    if (rawProducts.length > 0) {
-      // Mapeamos al formato que espera tu tabla
-      products = rawProducts.map(p => ({
-        code: 200,
-        body: {
-          id: p.id,
-          title: p.title,
-          thumbnail: p.thumbnail,
-          price: p.price,
-          available_quantity: p.available_quantity,
-          status: p.status
-        }
-      }));
-    } else {
-      // Si falla lo anterior, intentamos la búsqueda directa de items del usuario
-      const fallbackRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const fallbackData = await fallbackRes.json();
-      const ids = fallbackData.results || [];
-      
-      if (ids.length > 0) {
-        const itemsRes = await fetch(`https://api.mercadolibre.com/items?ids=${ids.slice(0, 20).join(',')}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+    try {
+        // 1. Obtenemos tus datos básicos
+        const meRes = await fetch("https://api.mercadolibre.com/users/me", {
+            headers: { Authorization: `Bearer ${token}` },
         });
-        products = await itemsRes.json();
-      }
-    }
+        const meData = await meRes.json();
+        const userId = meData.id;
 
-    if (products.length === 0) {
-      error = `No se encontraron productos para ${meData.nickname} (ID: ${userId}). Verifica si tienes publicaciones activas.`;
-    }
+        // 2. Intentamos buscar por seller_id en el sitio de Chile (MLC)
+        // Este endpoint es más confiable para cuentas nuevas
+        const searchRes = await fetch(
+            `https://api.mercadolibre.com/sites/MLC/search?seller_id=${userId}`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            },
+        );
+        const searchData = await searchRes.json();
 
-  } catch (e) {
-    console.error("Error MeLi:", e);
-    error = "Error al cargar datos.";
-  }
+        // MeLi en /sites/search devuelve los datos completos en .results
+        // No necesitamos hacer un segundo fetch por cada ID
+        const rawProducts = searchData.results || [];
+
+        if (rawProducts.length > 0) {
+            // Mapeamos al formato que espera tu tabla
+            products = rawProducts.map((p) => ({
+                code: 200,
+                body: {
+                    id: p.id,
+                    title: p.title,
+                    thumbnail: p.thumbnail,
+                    price: p.price,
+                    available_quantity: p.available_quantity,
+                    status: p.status,
+                },
+            }));
+        } else {
+            // Si falla lo anterior, intentamos la búsqueda directa de items del usuario
+            const fallbackRes = await fetch(
+                `https://api.mercadolibre.com/users/${userId}/items/search`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            const fallbackData = await fallbackRes.json();
+            const ids = fallbackData.results || [];
+
+            if (ids.length > 0) {
+                const itemsRes = await fetch(
+                    `https://api.mercadolibre.com/items?ids=${ids.slice(0, 20).join(",")}`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` },
+                    },
+                );
+                products = await itemsRes.json();
+            }
+        }
+
+        if (products.length === 0) {
+            error = `No se encontraron productos para ${meData.nickname} (ID: ${userId}). Verifica si tienes publicaciones activas.`;
+        }
+    } catch (e) {
+        console.error("Error MeLi:", e);
+        error = "Error al cargar datos.";
+    }
 }
-
 
 const clientId = import.meta.env.MELI_CLIENT_ID;
 const redirectUri = encodeURIComponent(import.meta.env.MELI_REDIRECT_URI);
