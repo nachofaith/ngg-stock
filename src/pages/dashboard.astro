@@ -52,39 +52,44 @@ let error = null;
 //     }
 // }
 
-
 if (token) {
-  try {
-    const meRes = await fetch('https://api.mercadolibre.com/users/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const meData = await meRes.json();
-    
-    // LOG DE SEGURIDAD: Ver si el usuario es el correcto
-    console.log("Logueado en MeLi como:", meData.nickname);
+    try {
+        const meRes = await fetch("https://api.mercadolibre.com/users/me", {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const meData = await meRes.json();
 
-    const searchRes = await fetch(`https://api.mercadolibre.com/users/${meData.id}/items/search`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const searchData = await searchRes.json();
-    
-    // LOG DE SEGURIDAD: Ver cuántos IDs encontró
-    console.log("IDs encontrados:", searchData.results?.length || 0);
+        // LOG DE SEGURIDAD: Ver si el usuario es el correcto
+        console.log("Logueado en MeLi como:", meData.nickname);
 
-    const itemIds = searchData.results || [];
+        const searchRes = await fetch(
+            `https://api.mercadolibre.com/users/${meData.id}/items/search?status=active,paused`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            },
+        );
+        const searchData = await searchRes.json();
 
-    if (itemIds.length > 0) {
-      // Pedimos máximo 20 para no saturar la API en la prueba
-      const limitedIds = itemIds.slice(0, 20);
-      const itemsRes = await fetch(`https://api.mercadolibre.com/items?ids=${limitedIds.join(',')}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      products = await itemsRes.json();
+        // LOG DE SEGURIDAD: Ver cuántos IDs encontró
+        console.log("IDs encontrados:", searchData.results?.length || 0);
+
+        const itemIds = searchData.results || [];
+
+        if (itemIds.length > 0) {
+            // Pedimos máximo 20 para no saturar la API en la prueba
+            const limitedIds = itemIds.slice(0, 20);
+            const itemsRes = await fetch(
+                `https://api.mercadolibre.com/items?ids=${limitedIds.join(",")}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            products = await itemsRes.json();
+        }
+    } catch (e) {
+        console.error("ERROR CRÍTICO:", e);
+        error = "Error al obtener datos.";
     }
-  } catch (e) {
-    console.error("ERROR CRÍTICO:", e);
-    error = "Error al obtener datos.";
-  }
 }
 
 const clientId = import.meta.env.MELI_CLIENT_ID;
