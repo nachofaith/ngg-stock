@@ -1,47 +1,54 @@
 ---
 // src/pages/dashboard.astro
-import Layout from '../layouts/Layout.astro';
+import Layout from "../layouts/Layout.astro";
 
 // 1. Verificación de seguridad de tu App
-const isAuthenticated = Astro.cookies.get('app_session')?.value === 'authenticated';
-if (!isAuthenticated) return Astro.redirect('/');
+const isAuthenticated =
+    Astro.cookies.get("app_session")?.value === "authenticated";
+if (!isAuthenticated) return Astro.redirect("/");
 
-const token = Astro.cookies.get('meli_access_token')?.value;
+const token = Astro.cookies.get("meli_access_token")?.value;
 let products = []; // Aseguramos que empiece como array vacío
 let error = null;
 
 if (token) {
-  try {
-    const meRes = await fetch('https://api.mercadolibre.com/users/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const meData = await meRes.json();
-    const userId = meData.id;
+    try {
+        const meRes = await fetch("https://api.mercadolibre.com/users/me", {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const meData = await meRes.json();
+        const userId = meData.id;
 
-    const searchRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const searchData = await searchRes.json();
-    
-    // Aquí estaba el riesgo: nos aseguramos de que itemIds sea un array
-    const itemIds = searchData.results || [];
+        const searchRes = await fetch(
+            `https://api.mercadolibre.com/users/${userId}/items/search`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            },
+        );
+        const searchData = await searchRes.json();
 
-    if (itemIds.length > 0) {
-      const itemsRes = await fetch(`https://api.mercadolibre.com/items?ids=${itemIds.join(',')}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const itemsData = await itemsRes.json();
-      
-      // MeLi devuelve un array, pero por si acaso validamos:
-      products = Array.isArray(itemsData) ? itemsData : [];
-    } else {
-      products = []; // No hay productos
+        // Aquí estaba el riesgo: nos aseguramos de que itemIds sea un array
+        const itemIds = searchData.results || [];
+
+        if (itemIds.length > 0) {
+            const itemsRes = await fetch(
+                `https://api.mercadolibre.com/items?ids=${itemIds.join(",")}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            const itemsData = await itemsRes.json();
+
+            // MeLi devuelve un array, pero por si acaso validamos:
+            products = Array.isArray(itemsData) ? itemsData : [];
+        } else {
+            products = []; // No hay productos
+        }
+    } catch (e) {
+        console.error("Error en MeLi:", e);
+        error = "Hubo un problema al conectar con Mercado Libre.";
+        products = []; // Evitamos que sea undefined
     }
-  } catch (e) {
-    console.error("Error en MeLi:", e);
-    error = "Hubo un problema al conectar con Mercado Libre.";
-    products = []; // Evitamos que sea undefined
-  }
 }
 
 const clientId = import.meta.env.MELI_CLIENT_ID;
@@ -51,61 +58,115 @@ const meliAuthUrl = `https://auth.mercadolibre.cl/authorization?response_type=co
 
 <Layout title="Dashboard | NGG Stock">
     <nav class="bg-white border-b border-gray-200 px-4 py-2.5">
-        <div class="flex flex-wrap justify-between items-center mx-auto max-w-screen-xl">
-            <span class="self-center text-xl font-semibold text-emerald-600">NGG STOCK</span>
-            <a href="/api/auth/logout" class="text-sm text-gray-500 hover:text-red-600">Cerrar Sesión</a>
+        <div
+            class="flex flex-wrap justify-between items-center mx-auto max-w-screen-xl"
+        >
+            <span class="self-center text-xl font-semibold text-emerald-600"
+                >NGG STOCK</span
+            >
+            <a
+                href="/api/auth/logout"
+                class="text-sm text-gray-500 hover:text-red-600"
+                >Cerrar Sesión</a
+            >
         </div>
     </nav>
 
     <main class="p-4 md:p-8 max-w-screen-xl mx-auto">
-        {!token ? (
-            <div class="p-4 mb-4 text-yellow-800 border border-yellow-300 rounded-lg bg-yellow-50">
-                <h3 class="text-lg font-medium">Vincular Mercado Libre</h3>
-                <p class="mb-4 text-sm">Conecta tu cuenta para empezar a gestionar el stock.</p>
-                <a href={meliAuthUrl} class="text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 inline-block">Conectar ahora</a>
-            </div>
-        ) : (
-            <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
-                <table class="w-full text-sm text-left text-gray-500">
-                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3">Producto</th>
-                            <th class="px-6 py-3">Precio</th>
-                            <th class="px-6 py-3 text-center">Stock</th>
-                            <th class="px-6 py-3">Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {products.map((item) => (
-                            <tr class="bg-white border-b hover:bg-gray-50">
-                                <th scope="row" class="flex items-center px-6 py-4 text-gray-900 whitespace-nowrap">
-                                    <img class="w-10 h-10 rounded-full" src={item.body.thumbnail} alt={item.body.title} />
-                                    <div class="ps-3">
-                                        <div class="text-base font-semibold">{item.body.title}</div>
-                                        <div class="font-normal text-gray-500">{item.body.id}</div>
-                                    </div>  
-                                </th>
-                                <td class="px-6 py-4">
-                                    ${item.body.price.toLocaleString('es-CL')}
-                                </td>
-                                <td class="px-6 py-4 text-center">
-                                    <span class={`font-bold ${item.body.available_quantity < 5 ? 'text-red-600' : 'text-green-600'}`}>
-                                        {item.body.available_quantity}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4">
-                                    {item.body.status === 'active' ? (
-                                        <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Activo</span>
-                                    ) : (
-                                        <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full italic">{item.body.status}</span>
-                                    )}
-                                </td>
+        {
+            !token ? (
+                <div class="p-4 mb-4 text-yellow-800 border border-yellow-300 rounded-lg bg-yellow-50">
+                    <h3 class="text-lg font-medium">Vincular Mercado Libre</h3>
+                    <p class="mb-4 text-sm">
+                        Conecta tu cuenta para empezar a gestionar el stock.
+                    </p>
+                    <a
+                        href={meliAuthUrl}
+                        class="text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 inline-block"
+                    >
+                        Conectar ahora
+                    </a>
+                </div>
+            ) : (
+                <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3">Producto</th>
+                                <th class="px-6 py-3">Precio</th>
+                                <th class="px-6 py-3 text-center">Stock</th>
+                                <th class="px-6 py-3">Estado</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        )}
+                        </thead>
+                        <tbody>
+                            {products && products.length > 0 ? (
+                                products.map((item) => (
+                                    <tr class="bg-white border-b hover:bg-gray-50">
+                                        {/* ... tu código de la fila ... */}
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td
+                                        colspan="4"
+                                        class="px-6 py-10 text-center text-gray-500 italic"
+                                    >
+                                        No se encontraron productos o la cuenta
+                                        no tiene stock activo.
+                                    </td>
+                                </tr>
+                            )}
+                            {products.map((item) => (
+                                <tr class="bg-white border-b hover:bg-gray-50">
+                                    <th
+                                        scope="row"
+                                        class="flex items-center px-6 py-4 text-gray-900 whitespace-nowrap"
+                                    >
+                                        <img
+                                            class="w-10 h-10 rounded-full"
+                                            src={item.body.thumbnail}
+                                            alt={item.body.title}
+                                        />
+                                        <div class="ps-3">
+                                            <div class="text-base font-semibold">
+                                                {item.body.title}
+                                            </div>
+                                            <div class="font-normal text-gray-500">
+                                                {item.body.id}
+                                            </div>
+                                        </div>
+                                    </th>
+                                    <td class="px-6 py-4">
+                                        $
+                                        {item.body.price.toLocaleString(
+                                            "es-CL",
+                                        )}
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span
+                                            class={`font-bold ${item.body.available_quantity < 5 ? "text-red-600" : "text-green-600"}`}
+                                        >
+                                            {item.body.available_quantity}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        {item.body.status === "active" ? (
+                                            <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                                Activo
+                                            </span>
+                                        ) : (
+                                            <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full italic">
+                                                {item.body.status}
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )
+        }
         {error && <p class="mt-4 text-red-500 text-center">{error}</p>}
     </main>
 </Layout>
