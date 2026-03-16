@@ -11,77 +11,62 @@ const token = Astro.cookies.get("meli_access_token")?.value;
 let products = []; // Aseguramos que empiece como array vacío
 let error = null;
 
-// if (token) {
-//     try {
-//         const meRes = await fetch("https://api.mercadolibre.com/users/me", {
-//             headers: { Authorization: `Bearer ${token}` },
-//         });
-//         const meData = await meRes.json();
-
-//         console.log("Nickname:", meData.nickname, "ID:", meData.id);
-
-//         const searchRes = await fetch(
-//             `https://api.mercadolibre.com/users/${meData.id}/items/search?seller_id=${meData.id}`,
-//             { headers: { Authorization: `Bearer ${token}` } },
-//         );
-
-//         const searchData = await searchRes.json();
-//         let itemIds = searchData.results || [];
-
-//         // Si no encontró activos, busquemos pausados para no dejar la tabla vacía
-//         if (itemIds.length === 0) {
-//             const pausedRes = await fetch(
-//                 `https://api.mercadolibre.com/users/${meData.id}/items/search?status=paused&limit=50`,
-//                 { headers: { Authorization: `Bearer ${token}` } },
-//             );
-//             const pausedData = await pausedRes.json();
-//             itemIds = pausedData.results || [];
-//         }
-//     } catch (e) {
-//         console.error("ERROR CRÍTICO:", e);
-//         error = "Error al obtener datos.";
-//     }
-// }
-
-
 if (token) {
   try {
+    // 1. Obtenemos tus datos básicos
     const meRes = await fetch('https://api.mercadolibre.com/users/me', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const meData = await meRes.json();
-    
-    // Intentamos buscar sin filtros primero para ver si trae ALGO
-    const searchRes = await fetch(`https://api.mercadolibre.com/users/${meData.id}/items/search`, {
+    const userId = meData.id;
+
+    // 2. Intentamos buscar por seller_id en el sitio de Chile (MLC)
+    // Este endpoint es más confiable para cuentas nuevas
+    const searchRes = await fetch(`https://api.mercadolibre.com/sites/MLC/search?seller_id=${userId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const searchData = await searchRes.json();
     
-    // Si sigue en 0, intentamos buscar por seller_id
-    let items = searchData.results || [];
-    
-    if (items.length === 0) {
-        const altRes = await fetch(`https://api.mercadolibre.com/sites/MLC/search?seller_id=${meData.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const altData = await altRes.json();
-        items = altData.results?.map(i => i.id) || [];
-    }
+    // MeLi en /sites/search devuelve los datos completos en .results
+    // No necesitamos hacer un segundo fetch por cada ID
+    const rawProducts = searchData.results || [];
 
-    if (items.length > 0) {
-      const itemsRes = await fetch(`https://api.mercadolibre.com/items?ids=${items.slice(0,20).join(',')}`, {
+    if (rawProducts.length > 0) {
+      // Mapeamos al formato que espera tu tabla
+      products = rawProducts.map(p => ({
+        code: 200,
+        body: {
+          id: p.id,
+          title: p.title,
+          thumbnail: p.thumbnail,
+          price: p.price,
+          available_quantity: p.available_quantity,
+          status: p.status
+        }
+      }));
+    } else {
+      // Si falla lo anterior, intentamos la búsqueda directa de items del usuario
+      const fallbackRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      products = await itemsRes.json();
+      const fallbackData = await fallbackRes.json();
+      const ids = fallbackData.results || [];
+      
+      if (ids.length > 0) {
+        const itemsRes = await fetch(`https://api.mercadolibre.com/items?ids=${ids.slice(0, 20).join(',')}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        products = await itemsRes.json();
+      }
     }
-    
-    // GUARDAMOS EL ERROR EN UNA VARIABLE PARA VERLO EN EL DASHBOARD
-    if (items.length === 0) {
-        error = `MeLi dice que no tienes items. Usuario: ${meData.nickname} (ID: ${meData.id})`;
+
+    if (products.length === 0) {
+      error = `No se encontraron productos para ${meData.nickname} (ID: ${userId}). Verifica si tienes publicaciones activas.`;
     }
 
   } catch (e) {
-    error = "Error de conexión: " + e.message;
+    console.error("Error MeLi:", e);
+    error = "Error al cargar datos.";
   }
 }
 
