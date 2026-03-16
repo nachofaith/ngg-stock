@@ -16,34 +16,47 @@ let error: string | null = null;
 
 if (token) {
   try {
-    // 1. Obtener info del usuario
+    // 1. Datos del usuario (esto ya sabemos que funciona)
     const meRes = await fetch('https://api.mercadolibre.com/users/me', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!meRes.ok) throw new Error("Error al obtener perfil");
     const meData = await meRes.json();
+    const userId = meData.id;
 
-    // 2. Buscar items (Limitamos a 30 para evitar el timeout del 520)
-    const searchRes = await fetch(
-      `https://api.mercadolibre.com/users/${meData.id}/items/search?status=active,paused&limit=30`, 
-      { headers: { 'Authorization': `Bearer ${token}` } }
-    );
-    const searchData = await searchRes.json();
-    const ids = searchData.results || [];
-
-    if (ids.length > 0) {
-      // 3. Obtener detalles
-      const itemsRes = await fetch(`https://api.mercadolibre.com/items?ids=${ids.join(',')}`, {
+    // 2. ESTRATEGIA NUEVA: Usamos el endpoint de LISTADO DE ITEMS del usuario
+    // Este no es un "search", es una lista directa de IDs.
+    const listRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search?status=active`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const listData = await listRes.json();
+    
+    // Si no hay activos, intentamos traer pausados por separado
+    let ids = listData.results || [];
+    
+    if (ids.length === 0) {
+      const pausedRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search?status=paused`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const itemsData = await itemsRes.json();
-      
-      // Validamos que sea un array antes de asignar
-      products = Array.isArray(itemsData) ? itemsData : [];
+      const pausedData = await pausedRes.json();
+      ids = pausedData.results || [];
     }
+
+    // 3. Obtener detalles de esos IDs
+    if (ids.length > 0) {
+      // Tomamos los primeros 20 para asegurar que cargue rápido
+      const itemsRes = await fetch(`https://api.mercadolibre.com/items?ids=${ids.slice(0, 20).join(',')}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      products = await itemsRes.json();
+    }
+
+    if (products.length === 0) {
+      error = "No se encontraron productos. Nickname: " + meData.nickname;
+    }
+
   } catch (e: any) {
-    console.error("DEBUG MeLi:", e.message);
-    error = "No pudimos traer tus productos. Reintenta en unos segundos.";
+    console.error("Error:", e);
+    error = "Error de conexión con MeLi.";
   }
 }
 
